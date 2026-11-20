@@ -1,0 +1,242 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 1: Global Default-Deny Gate
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core Authentication & Validation Helpers
+    function isAuthenticated() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated()
+        && ((exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+          || request.auth.token.email == 'dhivyasri2124@gmail.com');
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'photoUrl', 'role', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'photoUrl', 'role', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.photoUrl is string && data.photoUrl.size() <= 512
+        && data.role in ['analyst', 'admin']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPrivateAccount(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && data.email.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDisputeNote(data) {
+      return data.keys().hasAll(['uid', 'disputeId', 'note', 'decisionOverride', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'disputeId', 'note', 'decisionOverride', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.disputeId is string && data.disputeId.size() >= 1 && data.disputeId.size() <= 64
+        && data.disputeId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.note is string && data.note.size() >= 1 && data.note.size() <= 2000
+        && data.decisionOverride in ['NONE', 'CONTEST', 'ACCEPT', 'ESCALATE']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPolicyPreset(data) {
+      return data.keys().hasAll([
+          'uid',
+          'gatewayDisputeFeeInr',
+          'internalOpsCostInr',
+          'autoContestThreshold',
+          'humanReviewFloor',
+          'courierTimeoutMs',
+          'visaTemplate',
+          'mastercardTemplate',
+          'rupayTemplate',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'gatewayDisputeFeeInr',
+          'internalOpsCostInr',
+          'autoContestThreshold',
+          'humanReviewFloor',
+          'courierTimeoutMs',
+          'visaTemplate',
+          'mastercardTemplate',
+          'rupayTemplate',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.gatewayDisputeFeeInr is number && data.gatewayDisputeFeeInr >= 0 && data.gatewayDisputeFeeInr <= 5000
+        && data.internalOpsCostInr is number && data.internalOpsCostInr >= 0 && data.internalOpsCostInr <= 2000
+        && data.autoContestThreshold is number && data.autoContestThreshold >= 0.5 && data.autoContestThreshold <= 0.95
+        && data.humanReviewFloor is number && data.humanReviewFloor >= 0.1 && data.humanReviewFloor <= 0.65
+        && data.humanReviewFloor < data.autoContestThreshold
+        && data.courierTimeoutMs is int && data.courierTimeoutMs >= 500 && data.courierTimeoutMs <= 10000
+        && data.visaTemplate is string && data.visaTemplate.size() >= 1 && data.visaTemplate.size() <= 500
+        && data.mastercardTemplate is string && data.mastercardTemplate.size() >= 1 && data.mastercardTemplate.size() <= 500
+        && data.rupayTemplate is string && data.rupayTemplate.size() >= 1 && data.rupayTemplate.size() <= 500
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidVoiceSession(data) {
+      return data.keys().hasAll(['uid', 'disputeId', 'summary', 'transcriptText', 'turnCount', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'disputeId', 'summary', 'transcriptText', 'turnCount', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.disputeId is string && data.disputeId.size() >= 1 && data.disputeId.size() <= 64
+        && data.disputeId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 500
+        && data.transcriptText is string && data.transcriptText.size() >= 1 && data.transcriptText.size() <= 12000
+        && data.turnCount is int && data.turnCount >= 1 && data.turnCount <= 200
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // 1. Public-safe User Profile (No PII)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if false;
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == userId
+        && (incoming().role == 'analyst' || isAdmin())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (isOwner(userId)
+            && incoming().role == existing().role
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoUrl', 'updatedAt']))
+          || (isAdmin()
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoUrl', 'role', 'updatedAt']))
+        );
+      allow delete: if false;
+
+      // 2. Owner-Isolated PII Private Subcollection
+      match /private/{docId} {
+        allow get: if isValidId(userId) && docId == 'account' && isOwner(userId);
+        allow list: if false;
+        allow create: if isValidId(userId)
+          && docId == 'account'
+          && isOwner(userId)
+          && isValidPrivateAccount(incoming())
+          && incoming().uid == userId
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId)
+          && docId == 'account'
+          && isOwner(userId)
+          && isValidPrivateAccount(incoming())
+          && incoming().uid == existing().uid
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'updatedAt']);
+        allow delete: if false;
+      }
+
+      // 3. Analyst Investigation Notes per Dispute
+      match /notes/{noteId} {
+        allow get: if isValidId(userId) && isValidId(noteId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId) && resource.data.uid == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(noteId)
+          && isOwner(userId)
+          && isValidDisputeNote(incoming())
+          && incoming().uid == request.auth.uid
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId)
+          && isValidId(noteId)
+          && isOwner(userId)
+          && isValidDisputeNote(incoming())
+          && incoming().uid == existing().uid
+          && incoming().disputeId == existing().disputeId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['note', 'decisionOverride', 'updatedAt']);
+        allow delete: if isValidId(userId) && isValidId(noteId) && isOwner(userId);
+      }
+
+      // 4. Guardrail Policy Presets
+      match /policies/{policyId} {
+        allow get: if isValidId(userId) && isValidId(policyId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId) && resource.data.uid == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(policyId)
+          && isOwner(userId)
+          && isValidPolicyPreset(incoming())
+          && incoming().uid == request.auth.uid
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId)
+          && isValidId(policyId)
+          && isOwner(userId)
+          && isValidPolicyPreset(incoming())
+          && incoming().uid == existing().uid
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'gatewayDisputeFeeInr',
+            'internalOpsCostInr',
+            'autoContestThreshold',
+            'humanReviewFloor',
+            'courierTimeoutMs',
+            'visaTemplate',
+            'mastercardTemplate',
+            'rupayTemplate',
+            'updatedAt'
+          ]);
+        allow delete: if isValidId(userId) && isValidId(policyId) && isOwner(userId);
+      }
+
+      // 5. Gemini Live Voice Conversation Logs
+      match /voiceSessions/{sessionId} {
+        allow get: if isValidId(userId) && isValidId(sessionId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId) && resource.data.uid == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(sessionId)
+          && isOwner(userId)
+          && isValidVoiceSession(incoming())
+          && incoming().uid == request.auth.uid
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if false;
+        allow delete: if isValidId(userId) && isValidId(sessionId) && isOwner(userId);
+      }
+    }
+  }
+}

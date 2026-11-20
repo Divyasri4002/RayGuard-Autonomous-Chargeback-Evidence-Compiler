@@ -1,0 +1,212 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Public-safe authenticated risk analyst profile (no PII)",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID matching document ID"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Analyst display name"
+        },
+        "photoUrl": {
+          "type": "string",
+          "description": "Avatar image URL"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["analyst", "admin"],
+          "description": "RBAC role; self-signup defaults to analyst"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "displayName", "photoUrl", "role", "createdAt", "updatedAt"]
+    },
+    "UserPrivateAccount": {
+      "title": "UserPrivateAccount",
+      "description": "Owner-isolated PII record containing verified email",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Owner UID"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified account email"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "createdAt", "updatedAt"]
+    },
+    "DisputeNote": {
+      "title": "DisputeNote",
+      "description": "Analyst investigation note and disposition override scoped to a dispute",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Author Firebase UID"
+        },
+        "disputeId": {
+          "type": "string",
+          "description": "Razorpay dispute identifier"
+        },
+        "note": {
+          "type": "string",
+          "description": "Investigation rationale"
+        },
+        "decisionOverride": {
+          "type": "string",
+          "enum": ["NONE", "CONTEST", "ACCEPT", "ESCALATE"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "disputeId", "note", "decisionOverride", "createdAt", "updatedAt"]
+    },
+    "UserPolicyPreset": {
+      "title": "UserPolicyPreset",
+      "description": "Persisted guardrail policy thresholds and network rebuttal templates per user",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string"
+        },
+        "gatewayDisputeFeeInr": {
+          "type": "number"
+        },
+        "internalOpsCostInr": {
+          "type": "number"
+        },
+        "autoContestThreshold": {
+          "type": "number"
+        },
+        "humanReviewFloor": {
+          "type": "number"
+        },
+        "courierTimeoutMs": {
+          "type": "integer"
+        },
+        "visaTemplate": {
+          "type": "string"
+        },
+        "mastercardTemplate": {
+          "type": "string"
+        },
+        "rupayTemplate": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "gatewayDisputeFeeInr",
+        "internalOpsCostInr",
+        "autoContestThreshold",
+        "humanReviewFloor",
+        "courierTimeoutMs",
+        "visaTemplate",
+        "mastercardTemplate",
+        "rupayTemplate",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "VoiceSessionLog": {
+      "title": "VoiceSessionLog",
+      "description": "Saved Gemini Live voice copilot transcript and summary",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string"
+        },
+        "disputeId": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "transcriptText": {
+          "type": "string"
+        },
+        "turnCount": {
+          "type": "integer"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "disputeId", "summary", "transcriptText", "turnCount", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Authenticated user display profile without PII"
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": {
+        "$ref": "#/entities/UserPrivateAccount"
+      },
+      "description": "Owner-isolated PII account details such as verified email"
+    },
+    "/users/{userId}/notes/{noteId}": {
+      "schema": {
+        "$ref": "#/entities/DisputeNote"
+      },
+      "description": "Analyst dispute investigation notes and disposition overrides"
+    },
+    "/users/{userId}/policies/{policyId}": {
+      "schema": {
+        "$ref": "#/entities/UserPolicyPreset"
+      },
+      "description": "Persisted user guardrail policy presets"
+    },
+    "/users/{userId}/voiceSessions/{sessionId}": {
+      "schema": {
+        "$ref": "#/entities/VoiceSessionLog"
+      },
+      "description": "Saved Gemini Live voice risk analyst transcripts"
+    }
+  }
+}

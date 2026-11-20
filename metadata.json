@@ -1,0 +1,10 @@
+{
+  "name": "RayGuard — Autonomous Chargeback Evidence Compiler",
+  "description": "Autonomous chargeback evidence compiler and dispute defender with HMAC webhook verification, deterministic cost-benefit gating, multimodal POD inspection, calibrated ML win scoring, and bank-ready PDF dossier compilation.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
